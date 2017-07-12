@@ -20,7 +20,7 @@ for page in range(0, total_pages):
     for img in soup.select('#comicimg'):
         address = img.find('img')['src']
         ttl = img.find('img')['alt']
-        print "\rDownload Page : ", str(page + 1)
+        print "\rDownload Page : ", str(page + 1),
         sys.stdout.flush()
         
         fname = str(page + 1).zfill(3) + ".jpg"
