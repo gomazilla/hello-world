@@ -1,56 +1,78 @@
-# 卡提諾漫畫下載-手動填入網址，頁數，輸出檔名
+# 卡提諾漫畫下載-全自動-有路徑問題
 import requests
 from bs4 import BeautifulSoup
 import shutil, time, zipfile, os, ctypes, sys, gzip
 
 ftype = ["jpg","png","gif"]
-temp_file_path = r"E:Download\Comic"
-comic_url = "http://m.comic.ck101.com/vols/3960100/"
-total_pages = 96
-goal_file = r"E:Download\OutputData\INU30.zip"
+temp_file_path = "E:/Download/Temp"
+output_path = "E:/Download/OutputData"
+main_url = "http://m.comic.ck101.com/comic/5685/0/1"
 
-#下載圖檔
+#找每冊連結
 
-for page in range(0, total_pages):
-    pageurl = comic_url + str(page + 1)
-    time.sleep(1)
-    res = requests.get(pageurl)
-    soup = BeautifulSoup(res.text, "html5lib")
+list_res = requests.get(main_url)
+soup = BeautifulSoup(list_res.text, "html5lib")
+comic_list = soup.find('div', {"class":"showList"})
+
+print "尋找連結中..."
+for link in comic_list.find_all('a'):    
+    comic_url = "http://m.comic.ck101.com/vols/" + link.get('href').split('/')[2]  #冊連結
+    goal_file = output_path + "/" + link.get('title') + ".zip"            #冊標題
+    print "漫畫連結 :", comic_url
+    print "漫畫標題 :", link.get('title')
     
-    for img in soup.select('#comicimg'):
-        address = img.find('img')['src']
-        ttl = img.find('img')['alt']
-        print "\rDownload Page : ", str(page + 1),
-        sys.stdout.flush()
+    #給定集數找頁數
+    
+    page_res = requests.get(comic_url + "/" +str(1))
+    page_soup = BeautifulSoup(page_res.text, "html5lib")
+    page_Box = page_soup.find('li', {"class" : "pageBox"}).text.split()
+    pages_list = page_Box[1].split('/')                                       #冊頁數
+    total_pages = int(pages_list[1])
+    print "該集總頁數 :", total_pages
+    
+    #建立暫存資料夾
+    temp_dir_name = os.path.join(temp_file_path, link.get('title'))  
+    print "建立暫存資料夾 :", temp_dir_name
+    if not os.path.exists(temp_dir_name):
+        os.makedirs(temp_dir_name)
+
+    #下載圖檔
+    for page in range(0, total_pages):
+        pageurl = comic_url + "/" + str(page + 1)
+        time.sleep(2)
+        res = requests.get(pageurl)
+        soup = BeautifulSoup(res.text, "html5lib")
         
-        fname = str(page + 1).zfill(3) + ".jpg"
-        pic_img = requests.get(address)
-        try:
-            g = gzip.open(pic_img.content, 'rb')
-            image_data = g.read()
-        except:
-            image_data = pic_img.content
-        
-        f = open("E:Download\Comic\\" + fname, 'wb')
-        f.write(image_data)
-        f.close()
-        shutil.copyfileobj(pic_img.raw, f)
-        del pic_img
-        
-#製作壓縮檔
+        for img in soup.select('#comicimg'):
+            address = img.find('img')['src']
+            ttl = img.find('img')['alt']
+            print "\r下載頁數 : ", str(page + 1),
+            sys.stdout.flush()
+            
+            fname = str(page + 1).zfill(3) + ".jpg"
+            pic_img = requests.get(address)
+            
+            try:
+                g = gzip.open(pic_img.content, 'rb')
+                image_data = g.read()
+            except:
+                image_data = pic_img.content
 
-zf = zipfile.ZipFile(goal_file, mode='w')
-os.chdir(temp_file_path)
-
-for root, folders, files in os.walk(".\\"):
-    for sfile in files:
-        aFile = os.path.join(root, sfile)
-
-        zf.write(aFile)
-        os.remove(aFile)
-zf.close()
-
-#報完成
-
-MessageBox = ctypes.windll.user32.MessageBoxW
-MessageBox(0, u"Download Completed", u"Download Completed", 0|0x00000000L)
+                f = open(temp_dir_name + "/" + fname, 'wb')
+            f.write(image_data)
+            f.close()
+            shutil.copyfileobj(pic_img.raw, f)
+            del pic_img
+     
+    #製作壓縮檔
+    print " "
+    print goal_file, "開始壓縮"
+    zf = zipfile.ZipFile(goal_file, mode='w')
+    os.chdir(temp_dir_name)
+    for root, folders, files in os.walk(".\\"):
+        for sfile in files:
+            aFile = os.path.join(root, sfile)
+            zf.write(aFile)
+            os.remove(aFile)
+    print link.get('title'), "壓縮完成"
+    zf.close()
